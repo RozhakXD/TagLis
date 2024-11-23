@@ -1,0 +1,135 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script src="https://cdn.tailwindcss.com"></script>
+	<title>TagLis - Pengecekan Tagihan Listrik</title>
+	<link rel="icon" href="{% static 'images/favicon.ico' %}" type="image/x-icon">
+	<style>
+	body {
+		display: flex;
+		flex-direction: column;
+		min-height: 100vh;
+	}
+
+	main {
+		flex: 1;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+	}
+	</style>
+</head>
+
+<body class="bg-gray-100 font-sans relative">
+	<header class="bg-blue-600 text-white py-4 shadow-md">
+		<div class="container mx-auto flex justify-between items-center px-4">
+			<h1 class="text-2xl font-bold">TagLis</h1>
+			<nav>
+				<a href="#" class="text-white hover:underline">FAQ</a>
+				<a href="https://trakteer.id/rozhak_official/tip" class="text-white hover:underline ml-4">Support</a>
+			</nav>
+		</div>
+	</header>
+	<!-- FAQ Modal -->
+	<div id="faq-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+		<div class="bg-white rounded-lg p-6 w-11/12 md:w-1/2">
+			<h2 class="text-xl font-bold text-center text-blue-600 mb-4">Frequently Asked Questions</h2>
+			<button id="close-faq" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900">&times;</button>
+			<div class="space-y-4">
+				<div>
+					<h3 class="font-semibold">Apa itu TagLis?</h3>
+					<p>TagLis adalah aplikasi untuk mengecek tagihan listrik Anda dengan mudah.</p>
+				</div>
+				<div>
+					<h3 class="font-semibold">Bagaimana cara menggunakan TagLis?</h3>
+					<p>Masukkan ID Pelanggan atau Bill Number Anda pada form yang tersedia, lalu klik "Cek Tagihan".</p>
+				</div>
+				<div>
+					<h3 class="font-semibold">Apakah data saya aman?</h3>
+					<p>Ya, kami menjaga kerahasiaan data Anda dengan baik.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- Notifikasi -->
+	<div id="notification-container" class="fixed top-5 right-5 space-y-4 z-50"></div>
+	<!-- Main Content -->
+	<main class="px-4 md:px-0">
+		<div class="bg-white rounded-lg p-6">
+			<h2 class="text-xl font-bold text-center text-blue-600 mb-4">Cek Tagihan Anda dengan Mudah!</h2>
+			<p class="text-center text-gray-700 mb-6">Masukkan ID Pelanggan atau Bill Number untuk melihat informasi tagihan Anda.</p>
+			<form id="taglis-form" class="flex flex-col items-center space-y-4">
+				<input type="text" id="bill_number" placeholder="Masukkan ID Pelanggan" class="w-full p-2 border rounded-md">
+				<button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Cek Tagihan</button>
+			</form>
+			<div id="result" class="mt-6 hidden bg-gray-100 p-4 rounded-md shadow-inner">
+			</div>
+		</div>
+	</main>
+	<!-- Footer -->
+	<footer class="bg-gray-800 text-white text-center py-4">
+		<p>© 2024 TagLis. Semua Hak Dilindungi.</p>
+	</footer>
+	<script>
+	document.querySelector('a[href="#"]').addEventListener('click', function(event) {
+		event.preventDefault();
+		document.getElementById('faq-modal').classList.remove('hidden');
+	});
+	document.getElementById('close-faq').addEventListener('click', function() {
+		document.getElementById('faq-modal').classList.add('hidden');
+	});
+	window.addEventListener('click', function(event) {
+		if(event.target === document.getElementById('faq-modal')) {
+			document.getElementById('faq-modal').classList.add('hidden');
+		}
+	});
+
+	function showNotification(message, type = "info") {
+		const container = document.getElementById("notification-container");
+		const notification = document.createElement("div");
+		notification.className = `p-2 rounded-md shadow-md text-white ${
+            type === "error" ? "bg-red-500" : "bg-green-500"
+          } transition-transform transform opacity-0 scale-90`;
+		notification.innerHTML = message;
+		container.appendChild(notification);
+		setTimeout(() => {
+			notification.classList.remove("opacity-0", "scale-90");
+			notification.classList.add("opacity-100", "scale-100");
+		}, 100);
+		setTimeout(() => {
+			notification.classList.add("opacity-0", "scale-90");
+			setTimeout(() => container.removeChild(notification), 300);
+		}, 5000);
+	}
+	document.getElementById('taglis-form').addEventListener('submit', async function(event) {
+		event.preventDefault();
+		const billNumber = document.getElementById('bill_number').value.trim();
+		if(!billNumber) {
+			showNotification("Harap masukkan ID Pelanggan yang valid!", "error");
+			return;
+		}
+		try {
+			const response = await fetch(`/api/v1/check/?id=${billNumber}`);
+			const json_data = await response.json();
+			console.log(json_data);
+			const resultDiv = document.getElementById('result');
+			if(response.ok && !json_data.error) {
+				resultDiv.innerHTML = json_data.bill_name.length === 0 ? `<p>${json_data.print.replace("EXT: ", "")}</p>` : `<p>Hai <b>${json_data.bill_name}</b>, untuk bulan <b>${json_data.bill_period}</b> dengan tarif <b>${json_data.daya}/${json_data.tarif}</b>, tagihan Anda sebesar <b>Rp ${parseFloat(json_data.bill_amount).toLocaleString('id-ID')}</b> dengan stan meter di angka <b>${json_data.stan_meter}</b>.</p>`;
+				showNotification("Data berhasil ditemukan!", "info");
+			} else {
+				resultDiv.innerHTML = `<p>${json_data.error || 'Terjadi kesalahan saat memproses data!'}</p>`;
+				showNotification(json_data.error || 'Terjadi kesalahan saat memproses data!', "error");
+			}
+			resultDiv.classList.remove('hidden');
+		} catch (error) {
+			showNotification("Terjadi kesalahan saat menghubungi server!", "error");
+		}
+	});
+	</script>
+</body>
+
+</html>
